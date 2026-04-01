@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MARBET — Account</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body>
+<div id="toast-container"></div>
+<nav>
+  <a class="nav-brand" href="/">
+    <img src="/static/logo.svg" alt="MARBET"/>
+    <span>MARBET</span>
+  </a>
+  <div class="nav-links">
+    <span class="chain-dot"></span>
+    <span style="font-size:0.6rem;color:var(--muted);margin-left:0.3rem;letter-spacing:0.1em;">ALGORAND TESTNET</span>
+    <div class="wallet-badge" id="wallet-badge">
+      <span class="uname"></span>
+      <span class="addr"></span>
+      <span class="bal"></span>
+    </div>
+    <button class="nav-pill" onclick="logout()">Exit</button>
+  </div>
+</nav>
+<div class="page">
+  <div class="container" style="max-width:560px;">
+    <div class="section-title" style="margin-bottom:1.5rem;">Account</div>
+    <div class="card" id="user-card">
+      <div class="card-title">Algorand Wallet</div>
+      <div id="user-info">Loading...</div>
+    </div>
+  </div>
+</div>
+<script src="/static/main.js"></script>
+<script>
+async function loadUser() {
+  const d = await api('/api/wallet');
+  const box = document.getElementById('user-info');
+  if (!d.success) {
+    box.innerHTML = '<a href="/" style="color:var(--accent);">Please register or log in.</a>';
+    return;
+  }
+  box.innerHTML = `
+    <div style="font-family:var(--font-display);font-size:1.2rem;font-weight:700;margin-bottom:1rem;">${d.username}</div>
+    <div style="font-size:0.62rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem;">Wallet Address</div>
+    <div style="color:var(--accent);word-break:break-all;font-size:0.7rem;margin-bottom:1rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;cursor:pointer;" onclick="navigator.clipboard.writeText('${d.address}').then(()=>toast('Copied!','success'))" title="Click to copy">${d.address}</div>
+    <div style="display:flex;gap:2rem;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;">Balance</div>
+        <div style="color:var(--success);font-size:1.3rem;font-weight:700;">${d.balance_algo.toFixed(6)} <span style="font-size:0.75rem;">ALGO</span></div>
+      </div>
+      <div>
+        <div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;">House Pool</div>
+        <div style="color:var(--accent);font-size:1.3rem;font-weight:700;">${d.house_balance.toFixed(6)} <span style="font-size:0.75rem;">ALGO</span></div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="font-size:0.65rem;color:var(--muted);">
+      House Escrow Address
+    </div>
+    <div style="color:var(--accent2);word-break:break-all;font-size:0.65rem;margin-top:0.3rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;cursor:pointer;" onclick="navigator.clipboard.writeText('${d.house_address}').then(()=>toast('Copied!','success'))" title="Click to copy">${d.house_address}</div>
+    <div style="font-size:0.58rem;color:var(--muted);margin-top:0.3rem;">Click address to copy</div>
+  `;
+}
+document.addEventListener('DOMContentLoaded', loadUser);
+</script>
+</body>
+</html>

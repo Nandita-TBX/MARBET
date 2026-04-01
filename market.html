@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MARBET — Prediction Markets</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    .spa-nav {
+      display: flex; gap: 0.2rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1.5rem;
+      position: sticky; top: 60px; z-index: 50;
+      overflow-x: auto;
+    }
+    .spa-tab {
+      padding: 0.7rem 1.1rem;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .spa-tab:hover { color: var(--text); }
+    .spa-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .panel { display: none; padding: 0.8rem 0; }
+    .panel.active { display: block; }
+
+    /* Override global market-grid for this page */
+    #market-grid {
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      max-width: 100%;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+
+    body { padding-top: 60px; }
+
+    /* suppress iOS/macOS text input overlay */
+    * { -webkit-user-modify: read-write-plaintext-only; }
+    input, textarea, select { -webkit-user-modify: read-write; }
+
+    /* tighter market cards */
+    .market-card { padding: 0.9rem !important; }
+    .market-q { font-size: 0.88rem !important; margin-bottom: 0.5rem !important; }
+    .opt-row { margin-bottom: 0.4rem !important; }
+    .section-header { margin-top: 0.8rem !important; margin-bottom: 0.6rem !important; }
+    .tabs { margin-bottom: 0.75rem !important; }
+
+    .wallet-hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+    .wallet-hero::after {
+      content:'';
+      position:absolute;
+      bottom:-40px; right:-40px;
+      width:180px; height:180px;
+      border-radius:50%;
+      background: radial-gradient(circle, rgba(0,229,255,0.06) 0%, transparent 70%);
+    }
+    .balance-big {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--success);
+      line-height: 1;
+    }
+    .balance-unit { font-size: 1rem; color: var(--muted); margin-left: 0.3rem; }
+
+    .faucet-btn {
+      background: linear-gradient(135deg, rgba(0,229,255,0.1), rgba(123,97,255,0.1));
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      border-radius: 8px;
+      padding: 0.9rem 1.4rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    .faucet-btn:hover {
+      background: linear-gradient(135deg, rgba(0,229,255,0.2), rgba(123,97,255,0.2));
+      box-shadow: 0 0 20px rgba(0,229,255,0.2);
+    }
+    .faucet-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .tx-row {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+    }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-badge {
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      min-width: 56px;
+      text-align: center;
+    }
+    .tx-badge.BET    { background: rgba(255,71,87,0.12); color: var(--danger); }
+    .tx-badge.PAYOUT { background: rgba(0,255,157,0.12); color: var(--success); }
+    .tx-badge.REFUND { background: rgba(255,184,0,0.12); color: var(--warn); }
+    .tx-badge.FAUCET { background: rgba(123,97,255,0.12); color: var(--accent2); }
+    .tx-amount { font-weight: 700; min-width: 80px; text-align: right; }
+    .tx-amount.neg { color: var(--danger); }
+    .tx-amount.pos { color: var(--success); }
+    .tx-id {
+      font-size: 0.6rem;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 160px;
+    }
+    .tx-chain-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .tx-chain-dot.real { background: var(--success); }
+
+    .ledger-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+    .ledger-table th {
+      text-align: left;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .ledger-table td {
+      padding: 0.6rem 0.6rem;
+      border-bottom: 1px solid rgba(30,45,56,0.5);
+      vertical-align: middle;
+    }
+    .ledger-table tr:last-child td { border-bottom: none; }
+
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+    }
+    .stat-label { font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+    .stat-val   { font-family: var(--font-display); font-size: 1.4rem; font-weight: 700; color: var(--text); }
+    .stat-val.accent { color: var(--accent); }
+    .stat-val.success { color: var(--success); }
+
+    .addr-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.7rem 1rem;
+      font-size: 0.68rem;
+      color: var(--accent);
+      word-break: break-all;
+      font-family: var(--font-mono);
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .addr-box:hover { border-color: var(--accent); }
+    .copy-hint { font-size: 0.58rem; color: var(--muted); margin-top: 0.3rem; }
+
+    /* TX modal */
+    .tx-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(6px);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    .tx-modal-overlay.open { display: flex; }
+    .tx-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+      width: 380px;
+      max-width: 90vw;
+      animation: popIn 0.25s ease;
+    }
+    .tx-modal-title {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--success);
+      margin-bottom: 1rem;
+    }
+    .tx-id-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.8rem 1rem;
+      font-size: 0.65rem;
+      color: var(--accent);
+      word-break: break-all;
+      font-family: var(--font-mono);
+      margin-bottom: 1rem;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.94); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    /* tighten the base modal class */
+    .modal { padding: 1.2rem !important; }
+    .modal .field { margin-bottom: 0.6rem !important; }
+    .modal .field label { margin-bottom: 0.25rem !important; }
+    .modal .field input,
+    .modal .field select { padding: 0.5rem 0.8rem !important; font-size: 0.82rem !important; }
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<!-- TX Confirmation Modal -->
+<div class="tx-modal-overlay" id="tx-modal" onclick="closeTxModal()">
+  <div class="tx-modal" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
+      <div class="tx-modal-title" style="margin:0;">✓ Transaction Recorded</div>
+      <button onclick="closeTxModal()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;width:28px;height:28px;cursor:pointer;font-size:1rem;line-height:1;display:flex;align-items:center;justify-content:center;" title="Close">✕</button>
+    </div>
+    <div style="font-size:0.65rem;color:var(--muted);margin-bottom:0.4rem;letter-spacing:0.1em;text-transform:uppercase;">Transaction ID</div>
+    <div class="tx-id-box" id="tx-modal-id">—</div>
+    <div style="font-size:0.65rem;color:var(--muted);" id="tx-modal-msg"></div>
+  </div>
+</div>
+
+<nav>
+  <a class="nav-brand" href="/">
+    <img src="/static/logo.svg" alt="MARBET"/>
+    <span>MARBET</span>
+  </a>
+  <div class="nav-links">
+    <span class="chain-dot" id="chain-dot"></span>
+    <span id="chain-label" style="font-size:0.6rem;color:var(--muted);margin-left:0.3rem;letter-spacing:0.1em;">CHECKING</span>
+    <div class="wallet-badge" id="wallet-badge">
+      <span class="uname"></span>
+      <span class="addr"></span>
+      <span class="bal"></span>
+    </div>
+    <button class="nav-pill" onclick="logout()">Exit</button>
+  </div>
+</nav>
+
+<div class="spa-nav">
+  <button class="spa-tab active" onclick="showPanel('markets',this)">Markets</button>
+  <button class="spa-tab"        onclick="showPanel('wallet',this)">My Wallet</button>
+  <button class="spa-tab"        onclick="showPanel('ledger',this)">House Ledger</button>
+  <button class="spa-tab"        onclick="showPanel('txs',this)">Transactions</button>
+</div>
+
+<div class="modal-overlay" id="bet-modal">
+  <div class="modal" style="padding:0;max-width:360px;width:90vw;max-height:90vh;display:flex;flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem 1.2rem 0.8rem;border-bottom:1px solid var(--border);">
+      <div class="modal-title" style="margin:0;font-size:0.9rem;">Place a Bet</div>
+      <button onclick="closeBetModal()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:4px;width:26px;height:26px;cursor:pointer;font-size:0.9rem;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <!-- Body -->
+    <div style="padding:0.8rem 1.2rem;overflow-y:auto;flex:1;">
+      <div id="bet-market-q" style="font-size:0.78rem;color:var(--muted);margin-bottom:0.2rem;"></div>
+      <div id="bet-market-id" style="font-size:0.6rem;color:var(--accent);margin-bottom:0.8rem;"></div>
+      <div style="margin-bottom:0.6rem;">
+        <label style="display:block;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem;">Your pick</label>
+        <select id="bet-option" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:0.82rem;padding:0.5rem 0.8rem;border-radius:6px;outline:none;"></select>
+      </div>
+      <div style="margin-bottom:0.5rem;">
+        <label style="display:block;font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:0.3rem;">Amount (ALGO)</label>
+        <input type="number" id="bet-amount" placeholder="10" min="0.01" step="0.01" style="width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);font-size:0.82rem;padding:0.5rem 0.8rem;border-radius:6px;outline:none;"/>
+      </div>
+      <div id="bet-pool-preview" style="font-size:0.65rem;color:var(--muted);min-height:1em;"></div>
+    </div>
+    <!-- Footer - always visible -->
+    <div style="display:flex;gap:0.5rem;justify-content:flex-end;padding:0.8rem 1.2rem;border-top:1px solid var(--border);background:var(--surface);">
+      <button class="btn btn-ghost btn-sm" onclick="closeBetModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmBet()">Confirm Bet</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="resolve-modal">
+  <div class="modal">
+    <div class="modal-title">Resolve Market</div>
+    <div id="resolve-question" style="font-size:0.82rem;color:var(--muted);margin-bottom:1.2rem;white-space:pre-line;"></div>
+    <div class="field">
+      <label>Winning outcome</label>
+      <select id="resolve-winner"></select>
+    </div>
+    <div style="font-size:0.7rem;color:var(--warn);margin-bottom:0.5rem;">
+      ⚠ Winners receive proportional payouts from the house pool.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" onclick="closeResolveModal()">Cancel</button>
+      <button class="btn btn-success btn-sm" onclick="confirmResolve()">Resolve &amp; Pay Winners</button>
+    </div>
+  </div>
+</div>
+
+<div style="max-width:900px;margin:0 auto;padding:0 1.5rem;width:100%;box-sizing:border-box;">
+
+  <div class="panel active" id="panel-markets">
+    <div class="section-header" style="margin-top:1.5rem;">
+      <div class="section-title">Prediction Markets</div>
+      <button class="btn btn-primary btn-sm" onclick="toggleCreate()">+ New Market</button>
+    </div>
+
+    <div class="card" id="create-panel" style="display:none;margin-bottom:1.5rem;">
+      <div class="card-title">Deploy a Market</div>
+      <div class="field">
+        <label>Question / Proposition</label>
+        <input type="text" id="mkt-q" placeholder="Will BTC hit $200k by 2026?"/>
+      </div>
+      <div class="field">
+        <label>Options — one per line (min 2)</label>
+        <textarea id="mkt-opts" rows="4" style="resize:vertical;" placeholder="Yes&#10;No&#10;Maybe"></textarea>
+      </div>
+      <div style="display:flex;gap:0.5rem;">
+        <button class="btn btn-primary" onclick="createMarket()">Deploy</button>
+        <button class="btn btn-ghost"   onclick="toggleCreate()">Cancel</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="filterMarkets('all',this)">All</button>
+      <button class="tab"        onclick="filterMarkets('open',this)">Open</button>
+      <button class="tab"        onclick="filterMarkets('resolved',this)">Resolved</button>
+      <button class="tab"        onclick="filterMarkets('mine',this)">Mine</button>
+      <button class="tab"        onclick="filterMarkets('mybets',this)">My Bets</button>
+    </div>
+    <div class="market-grid" id="market-grid">
+      <div class="empty">Loading...</div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-wallet">
+    <div class="wallet-hero" style="margin-top:1.5rem;">
+      <div style="font-size:0.62rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);margin-bottom:0.5rem;">Your Balance</div>
+      <div class="balance-big" id="w-balance">—<span class="balance-unit">ALGO</span></div>
+      <div style="margin-top:1rem;font-size:0.65rem;color:var(--muted);">Wallet Address</div>
+      <div class="addr-box" id="w-addr" onclick="copyAddr(this)" title="Click to copy">—</div>
+      <div class="copy-hint">Click address to copy</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+      <div class="card">
+        <div class="card-title">Faucet</div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:1rem;line-height:1.6;">
+          Claim free test ALGO to place bets. Each account can claim up to 2 times (100 ALGO each).
+        </div>
+        <button class="faucet-btn" id="faucet-btn" onclick="claimFaucet()">
+          ⚡ Claim 100 ALGO
+        </button>
+        <div id="faucet-status" style="font-size:0.65rem;color:var(--muted);margin-top:0.6rem;text-align:center;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">House Wallet</div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-bottom:0.5rem;">Escrow address</div>
+        <div class="addr-box" id="w-house-addr" onclick="copyAddr(this)" title="Click to copy" style="font-size:0.6rem;">—</div>
+        <div class="copy-hint">All bet funds are held here</div>
+        <div style="margin-top:1rem;font-size:0.72rem;">
+          Pool: <strong style="color:var(--accent);" id="w-house-bal">—</strong> ALGO
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">How It Works</div>
+      <div style="font-size:0.75rem;color:var(--muted);line-height:1.8;">
+        <div>① Register → receive 1,000 ALGO starting balance</div>
+        <div>② Claim faucet → +100 ALGO (up to 2 times)</div>
+        <div>③ Browse markets → place bets (min 0.01 ALGO)</div>
+        <div>④ Market creator resolves → winners paid proportionally</div>
+        <div>⑤ 97% of pool goes to winners · 3% house fee</div>
+        <div style="margin-top:0.6rem;color:var(--accent);font-size:0.68rem;">
+          All transactions are recorded with Algorand keypairs &amp; cryptographic signatures.
+          If the testnet node is reachable, real on-chain TXs are broadcast.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-ledger">
+    <div style="margin-top:1.5rem;">
+      <div class="section-title" style="margin-bottom:1rem;">House Ledger</div>
+      <div class="stat-row" id="ledger-stats">
+        <div class="stat-box"><div class="stat-label">Total Users</div><div class="stat-val accent" id="ls-users">—</div></div>
+        <div class="stat-box"><div class="stat-label">Active Markets</div><div class="stat-val accent" id="ls-markets">—</div></div>
+        <div class="stat-box"><div class="stat-label">Total Bet In</div><div class="stat-val success" id="ls-in">—</div></div>
+        <div class="stat-box"><div class="stat-label">House Balance</div><div class="stat-val" id="ls-hbal">—</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:1rem;">
+        <div class="card-title">House Escrow Address</div>
+        <div class="addr-box" id="ledger-house-addr" onclick="copyAddr(this)" title="Click to copy">—</div>
+        <div class="copy-hint">All bet funds escrow through this Algorand keypair</div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div style="padding:1rem 1.2rem;border-bottom:1px solid var(--border);">
+          <div class="card-title" style="margin:0;">All Transactions</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="ledger-table">
+            <thead>
+              <tr>
+                <th>User</th><th>Type</th><th>Market</th><th>Option</th>
+                <th>ALGO</th><th>TX ID</th><th>Chain</th><th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="ledger-body">
+              <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem;">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-txs">
+    <div style="margin-top:1.5rem;">
+      <div class="section-title" style="margin-bottom:1rem;">My Transactions</div>
+      <div id="tx-list" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0.5rem 1.2rem;">
+        <div class="empty">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/static/main.js"></script>
+<script>
+// ── STATE
+let allMarkets    = {};
+let myBetsList    = [];
+let currentFilter = 'all';
+let currentUser   = '{{ username }}';
+let betTarget     = null;
+let resolveTarget = null;
+
+// ── TX MODAL
+let _txTimer = null;
+function showTxModal(txId, msg) {
+  document.getElementById('tx-modal-id').textContent  = txId || '—';
+  document.getElementById('tx-modal-msg').textContent = msg  || '';
+  document.getElementById('tx-modal').classList.add('open');
+  if (_txTimer) clearTimeout(_txTimer);
+  _txTimer = setTimeout(closeTxModal, 4000);
+}
+function closeTxModal() {
+  document.getElementById('tx-modal').classList.remove('open');
+  if (_txTimer) { clearTimeout(_txTimer); _txTimer = null; }
+}
+
+// ── PANEL SWITCHING
+function showPanel(name, el) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.spa-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'wallet') loadWalletPanel();
+  if (name === 'ledger') loadLedger();
+  if (name === 'txs')    loadTxs();
+}
+
+// ── CHAIN STATUS
+async function checkChain() {
+  const d   = await api('/api/status');
+  const dot = document.getElementById('chain-dot');
+  const lbl = document.getElementById('chain-label');
+  if (d.online) {
+    dot.style.background = 'var(--success)';
+    dot.style.boxShadow  = '0 0 6px var(--success)';
+    lbl.style.color      = 'var(--success)';
+    lbl.textContent      = 'ALGORAND TESTNET';
+  } else {
+    dot.style.background = 'var(--warn)';
+    dot.style.boxShadow  = 'none';
+    lbl.style.color      = 'var(--warn)';
+    lbl.textContent      = 'SIMULATION MODE';
+  }
+  return d;
+}
+
+// ── WALLET BADGE
+async function loadWalletBadge() {
+  const d = await api('/api/wallet');
+  if (!d.success) return;
+  const badge = document.getElementById('wallet-badge');
+  badge.style.display = 'flex';
+  badge.querySelector('.uname').textContent = d.username;
+  badge.querySelector('.addr').textContent  = d.address.slice(0,6)+'...'+d.address.slice(-4);
+  badge.querySelector('.bal').textContent   = d.balance_algo.toFixed(2)+' ALGO';
+  return d;
+}
+
+// ── WALLET PANEL
+async function loadWalletPanel() {
+  const d = await api('/api/wallet');
+  if (!d.success) return;
+  document.getElementById('w-balance').innerHTML =
+    `${d.balance_algo.toFixed(4)}<span class="balance-unit">ALGO</span>`;
+  document.getElementById('w-addr').textContent      = d.address;
+  document.getElementById('w-house-addr').textContent = d.house_address;
+  document.getElementById('w-house-bal').textContent  = d.house_balance.toFixed(4);
+  const badge = document.getElementById('wallet-badge');
+  badge.style.display = 'flex';
+  badge.querySelector('.uname').textContent = d.username;
+  badge.querySelector('.addr').textContent  = d.address.slice(0,6)+'...'+d.address.slice(-4);
+  badge.querySelector('.bal').textContent   = d.balance_algo.toFixed(2)+' ALGO';
+}
+
+function copyAddr(el) {
+  const txt = el.textContent.trim();
+  navigator.clipboard.writeText(txt).then(() => toast('Address copied!', 'success'));
+}
+
+// ── FAUCET
+async function claimFaucet() {
+  const btn = document.getElementById('faucet-btn');
+  btn.disabled = true;
+  btn.textContent = 'Claiming…';
+  const d = await api('/api/faucet', 'POST');
+  if (d.success) {
+    toast(d.message, 'success');
+    document.getElementById('faucet-status').textContent = `New balance: ${d.new_balance_algo} ALGO`;
+    showTxModal(d.tx_id, `+100 ALGO credited to your wallet`);
+    await loadWalletPanel();
+    await loadWalletBadge();
+  } else {
+    toast(d.message, 'error');
+    document.getElementById('faucet-status').textContent = d.message;
+  }
+  btn.disabled = false;
+  btn.textContent = '⚡ Claim 100 ALGO';
+}
+
+// ── MARKETS
+async function loadMarkets() {
+  const d = await api('/api/markets');
+  allMarkets = d.markets || {};
+  const b   = await api('/api/my-bets');
+  myBetsList = b.bets || [];
+  if (currentFilter === 'mybets') renderMyBets();
+  else renderMarkets();
+}
+
+function filterMarkets(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  if (f === 'mybets') renderMyBets();
+  else renderMarkets();
+}
+
+function fmtAlgo(micro) { return (micro/1_000_000).toFixed(4)+' ALGO'; }
+
+function renderMarkets() {
+  const grid = document.getElementById('market-grid');
+  let entries = Object.values(allMarkets);
+  if (currentFilter === 'open')     entries = entries.filter(m => !m.resolved);
+  if (currentFilter === 'resolved') entries = entries.filter(m =>  m.resolved);
+  if (currentFilter === 'mine')     entries = entries.filter(m => m.creator === currentUser);
+  if (!entries.length) { grid.innerHTML = '<div class="empty">No markets here.</div>'; return; }
+
+  grid.innerHTML = entries.map(m => {
+    const pool = m.total_pool || 0;
+    const opts = m.options.map(o => {
+      const oBet = (m.bet_totals||{})[o]||0;
+      const pct  = pool > 0 ? Math.round(oBet/pool*100) : 0;
+      const win  = m.winner === o;
+      return `<div class="opt-row ${win?'winner-row':''}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem;">
+          <span class="opt-tag ${win?'winner':''}">${o}${win?' ✓':''}</span>
+          <span style="font-size:0.62rem;color:${win?'var(--success)':'var(--muted)'};">${fmtAlgo(oBet)} · ${pct}%</span>
+        </div>
+        <div class="pool-bar"><div class="pool-fill" style="width:${pct}%;${win?'background:var(--success);':''}"></div></div>
+      </div>`;
+    }).join('');
+
+    const isCreator = m.creator === currentUser;
+    const actions   = m.resolved ? '' : `
+      <div class="market-actions" style="margin-top:0.8rem;">
+        <button class="btn btn-primary btn-sm" onclick="openBetModal('${m.id}')">Place Bet</button>
+        ${isCreator ? `
+          <button class="btn btn-success btn-sm" onclick="openResolveModal('${m.id}')">Resolve</button>
+          <button class="btn btn-danger btn-sm"  onclick="deleteMarket('${m.id}')">Delete</button>` : ''}
+      </div>`;
+
+    const simBadge = m.real_tx
+      ? `<span style="color:var(--success);font-size:0.58rem;">⬡ on-chain</span>`
+      : `<span style="color:var(--muted);font-size:0.58rem;">◈ simulated</span>`;
+
+    return `<div class="market-card ${m.resolved?'resolved':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+        <span class="market-id">#${m.id}</span>
+        <div style="display:flex;align-items:center;gap:0.6rem;">
+          ${simBadge}
+          <span class="status-badge ${m.resolved?'resolved':'open'}">${m.resolved?'resolved':'open'}</span>
+        </div>
+      </div>
+      <div class="market-q">${m.question}</div>
+      <div style="font-size:0.62rem;color:var(--muted);margin-bottom:0.8rem;">
+        by ${m.creator} · ${m.created_at}
+      </div>
+      <div style="margin-bottom:0.5rem;font-size:0.68rem;color:var(--muted);">
+        Pool: <strong style="color:var(--text);">${fmtAlgo(pool)}</strong>
+      </div>
+      ${opts}${actions}
+    </div>`;
+  }).join('');
+}
+
+function renderMyBets() {
+  const grid = document.getElementById('market-grid');
+  if (!myBetsList.length) { grid.innerHTML = '<div class="empty">No bets placed yet.</div>'; return; }
+  grid.innerHTML = myBetsList.map(b => {
+    const won  = b.market_resolved && b.market_winner === b.option;
+    const lost = b.market_resolved && b.market_winner && b.market_winner !== b.option;
+    return `<div class="market-card" style="border-color:${won?'var(--success)':lost?'rgba(255,71,87,0.3)':'var(--border)'};">
+      <div style="display:flex;justify-content:space-between;margin-bottom:0.4rem;">
+        <span class="market-id">#${b.market_id}</span>
+        <span class="status-badge" style="${won?'color:var(--success);background:rgba(0,255,157,0.1);':lost?'color:var(--danger);background:rgba(255,71,87,0.1);':''}">
+          ${won?'WON':lost?'LOST':b.market_resolved?'RESOLVED':'OPEN'}
+        </span>
+      </div>
+      <div class="market-q" style="font-size:0.85rem;">${b.market_question}</div>
+      <div style="margin-top:0.6rem;font-size:0.72rem;">
+        Bet: <strong>${fmtAlgo(b.amount_microalgo)}</strong>
+        on <span class="opt-tag" style="display:inline;padding:0.1rem 0.4rem;">${b.option}</span>
+      </div>
+      ${b.payout_tx ? `<div style="font-size:0.65rem;color:var(--success);margin-top:0.4rem;">✓ Payout sent</div>` : ''}
+      <div style="font-size:0.6rem;color:var(--muted);margin-top:0.4rem;font-family:var(--font-mono);">
+        TX: ${b.tx_id ? b.tx_id.slice(0,20)+'…' : '—'} · ${new Date(b.placed_at).toLocaleString()}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── CREATE
+function toggleCreate() {
+  const p = document.getElementById('create-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
+async function createMarket() {
+  const q    = document.getElementById('mkt-q').value.trim();
+  const opts = document.getElementById('mkt-opts').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!q)            { toast('Enter a question', 'error'); return; }
+  if (opts.length<2) { toast('At least 2 options required', 'error'); return; }
+  const d = await api('/api/markets/create', 'POST', { question: q, options: opts });
+  if (d.success) {
+    toast(d.message, 'success');
+    showTxModal(d.tx_id, `Market #${d.market_id} deployed`);
+    document.getElementById('mkt-q').value    = '';
+    document.getElementById('mkt-opts').value = '';
+    document.getElementById('create-panel').style.display = 'none';
+    await loadMarkets();
+  } else toast(d.message, 'error');
+}
+
+// ── BET MODAL
+function openBetModal(id) {
+  betTarget = id;
+  const m   = allMarkets[id];
+  document.getElementById('bet-market-q').textContent  = m.question;
+  document.getElementById('bet-market-id').textContent = `Market #${m.id} · Pool: ${fmtAlgo(m.total_pool||0)}`;
+  const sel = document.getElementById('bet-option');
+  sel.innerHTML   = m.options.map(o=>`<option value="${o}">${o}</option>`).join('');
+  sel.onchange    = updateBetPreview;
+  document.getElementById('bet-amount').oninput = updateBetPreview;
+  document.getElementById('bet-amount').value   = '';
+  document.getElementById('bet-pool-preview').textContent = '';
+  document.getElementById('bet-modal').classList.add('open');
+}
+function closeBetModal() { document.getElementById('bet-modal').classList.remove('open'); betTarget = null; }
+function updateBetPreview() {
+  const m    = allMarkets[betTarget]; if (!m) return;
+  const opt  = document.getElementById('bet-option').value;
+  const amt  = parseFloat(document.getElementById('bet-amount').value)||0;
+  const pool = (m.total_pool||0)/1e6;
+  const cur  = ((m.bet_totals||{})[opt]||0)/1e6;
+  const np   = pool+amt, no = cur+amt;
+  document.getElementById('bet-pool-preview').textContent =
+    `Pool: ${np.toFixed(4)} ALGO · ${opt} share: ${np>0?(no/np*100).toFixed(1):0}%`;
+}
+async function confirmBet() {
+  const opt = document.getElementById('bet-option').value;
+  const amt = parseFloat(document.getElementById('bet-amount').value);
+  if (!opt || !amt || amt<=0) { toast('Enter a valid amount','error'); return; }
+  const d = await api(`/api/markets/${betTarget}/bet`, 'POST', { option: opt, amount_algo: amt });
+  if (d.success) {
+    toast(d.message, 'success');
+    closeBetModal();
+    showTxModal(d.tx_id, `${amt} ALGO bet on '${opt}' · New balance: ${d.new_balance_algo} ALGO`);
+    await loadMarkets();
+    await loadWalletBadge();
+  } else toast(d.message, 'error');
+}
+
+// ── RESOLVE MODAL
+function openResolveModal(id) {
+  resolveTarget = id;
+  const m   = allMarkets[id];
+  const pool= (m.total_pool||0)/1e6;
+  document.getElementById('resolve-question').textContent = `${m.question}\n\nPool: ${pool.toFixed(4)} ALGO`;
+  document.getElementById('resolve-winner').innerHTML = m.options.map(o=>`<option value="${o}">${o}</option>`).join('');
+  document.getElementById('resolve-modal').classList.add('open');
+}
+function closeResolveModal() { document.getElementById('resolve-modal').classList.remove('open'); resolveTarget=null; }
+async function confirmResolve() {
+  const winner = document.getElementById('resolve-winner').value;
+  const d      = await api(`/api/markets/${resolveTarget}/resolve`, 'POST', { winner });
+  if (d.success) {
+    toast(d.message, 'success');
+    closeResolveModal();
+    const firstTx = d.payouts?.[0]?.tx_id || null;
+    if (firstTx) showTxModal(firstTx, `Winner: '${winner}' · ${d.payouts.length} payout(s) sent · Pool: ${d.pool_algo} ALGO`);
+    await loadMarkets();
+    await loadWalletBadge();
+  } else toast(d.message, 'error');
+}
+
+// ── DELETE
+async function deleteMarket(id) {
+  if (!confirm(`Delete market #${id}? All bets will be refunded.`)) return;
+  const d = await api(`/api/markets/${id}`, 'DELETE');
+  toast(d.message, d.success?'success':'error');
+  if (d.success) {
+    const firstTx = d.refunds?.[0]?.tx_id || null;
+    if (firstTx) showTxModal(firstTx, `Market #${id} deleted · ${d.refunds.length} refund(s) issued`);
+    await loadMarkets();
+    await loadWalletBadge();
+  }
+}
+
+// ── TRANSACTIONS PANEL
+async function loadTxs() {
+  const d   = await api('/api/transactions');
+  const box = document.getElementById('tx-list');
+  if (!d.success || !d.transactions.length) {
+    box.innerHTML = '<div class="empty">No transactions yet.</div>';
+    return;
+  }
+  box.innerHTML = d.transactions.map(tx => {
+    const pos  = tx.amount > 0;
+    const sign = pos ? '+' : '';
+    const algo = (Math.abs(tx.amount)/1e6).toFixed(4);
+    return `<div class="tx-row">
+      <span class="tx-badge ${tx.type}">${tx.type}</span>
+      <span style="flex:1;color:var(--text);">${tx.label}</span>
+      <span class="tx-amount ${pos?'pos':'neg'}">${sign}${algo}</span>
+      <span class="tx-chain-dot ${tx.real_tx?'real':''}" title="${tx.real_tx?'On-chain':'Simulated'}"></span>
+      <span class="tx-id" title="${tx.tx_id}">${tx.tx_id}</span>
+      <span style="font-size:0.6rem;color:var(--muted);white-space:nowrap;">${new Date(tx.time).toLocaleDateString()}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── LEDGER PANEL
+async function loadLedger() {
+  const d = await api('/api/house-ledger');
+  if (!d.success) return;
+  document.getElementById('ls-users').textContent   = d.user_count;
+  document.getElementById('ls-markets').textContent = d.market_count;
+  document.getElementById('ls-in').textContent      = d.total_in_algo + ' ALGO';
+  document.getElementById('ls-hbal').textContent    = d.house_balance + ' ALGO';
+  document.getElementById('ledger-house-addr').textContent = d.house_address;
+
+  const tbody = document.getElementById('ledger-body');
+  if (!d.entries.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:2rem;">No transactions yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = d.entries.map(e => `
+    <tr>
+      <td style="color:var(--text);font-weight:600;">${e.user}</td>
+      <td><span class="tx-badge ${e.type}" style="display:inline-block;">${e.type}</span></td>
+      <td style="color:var(--accent);">#${e.market}</td>
+      <td style="color:var(--muted);">${e.option}</td>
+      <td style="color:var(--success);font-weight:600;">${e.algo}</td>
+      <td class="tx-id" style="max-width:120px;" title="${e.tx_id}">${e.tx_id.slice(0,14)}…</td>
+      <td>
+        <span style="font-size:0.6rem;${e.real_tx?'color:var(--success);':'color:var(--muted);'}">
+          ${e.real_tx ? '⬡ chain' : '◈ sim'}
+        </span>
+      </td>
+      <td style="color:var(--muted);font-size:0.62rem;white-space:nowrap;">${e.time}</td>
+    </tr>`).join('');
+}
+
+// ── INIT
+document.addEventListener('DOMContentLoaded', async () => {
+  await checkChain();
+  await loadWalletBadge();
+  await loadMarkets();
+  setInterval(loadMarkets, 12000);
+  setInterval(loadWalletBadge, 15000);
+});
+</script>
+</body>
+</html>
+
+// ── INIT
+document.addEventListener('DOMContentLoaded', async () => {
+  await checkChain();
+  await loadWalletBadge();
+  await loadMarkets();
+  setInterval(loadMarkets, 12000);
+  setInterval(loadWalletBadge, 15000);
+});
+</script>
+</body>
+</html>

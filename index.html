@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MARBET — Prediction Markets on Algorand</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <style>
+    .hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 60px);
+      padding: 2rem 1rem;
+      gap: 1.5rem;
+    }
+    .hero-logo {
+      width: 64px;
+      height: 64px;
+      animation: pulse 3s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,100% { filter: drop-shadow(0 0 12px rgba(0,229,255,0.4)); }
+      50%      { filter: drop-shadow(0 0 28px rgba(0,229,255,0.7)); }
+    }
+    .hero-title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(2.5rem, 8vw, 5rem);
+      letter-spacing: 0.2em;
+      color: var(--accent);
+      line-height: 1;
+      text-align: center;
+    }
+    .hero-sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .auth-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .auth-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.3;
+    }
+    .mnemonic-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--surface);
+      border: 1px solid var(--warn);
+      border-radius: 12px;
+      padding: 1.5rem;
+      display: none;
+    }
+    .mnemonic-box {
+      background: var(--bg);
+      border: 1px solid var(--warn);
+      border-radius: 6px;
+      padding: 0.8rem;
+      font-size: 0.65rem;
+      color: var(--warn);
+      word-break: break-all;
+      line-height: 1.6;
+      margin: 0.5rem 0 1rem;
+    }
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+
+<nav>
+  <a class="nav-brand" href="/">
+    <img src="/static/logo.svg" alt="MARBET"/>
+    <span>MARBET</span>
+  </a>
+  <div class="nav-links">
+    <span class="chain-dot" id="chain-dot" style="background:var(--muted);box-shadow:none;"></span>
+    <span id="chain-label" style="font-size:0.6rem;color:var(--muted);margin-left:0.3rem;letter-spacing:0.1em;">CHECKING...</span>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="hero">
+
+    <img src="/static/logo.svg" class="hero-logo" alt="MARBET"/>
+    <div class="hero-title">MARBET</div>
+    <div class="hero-sub">Decentralised prediction markets · Algorand</div>
+
+    <!-- AUTH CARD -->
+    <div class="auth-card">
+      <div class="tabs" style="margin-bottom:1.5rem;">
+        <button class="tab active" onclick="switchTab('register',this)">New Account</button>
+        <button class="tab" onclick="switchTab('login',this)">Login</button>
+        <button class="tab" onclick="switchTab('recover',this)">Recover</button>
+      </div>
+
+      <!-- REGISTER -->
+      <div id="tab-register">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="reg-user" placeholder="e.g. satoshi" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>PIN / Password <span style="color:var(--muted);font-size:0.6rem;">(optional)</span></label>
+          <input type="password" id="reg-pw" placeholder="••••••"/>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="register()">Create Account + Wallet</button>
+        <p style="font-size:0.62rem;color:var(--muted);margin-top:0.8rem;text-align:center;">
+          A fresh Algorand keypair will be generated for you.
+        </p>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="tab-login" style="display:none;">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="login-user" placeholder="your username" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>Password / PIN</label>
+          <input type="password" id="login-pw" placeholder="••••••"/>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="login()">Enter</button>
+        <p style="font-size:0.62rem;color:var(--muted);margin-top:0.8rem;text-align:center;">
+          No password? Use <strong style="color:var(--accent)">Recover</strong> tab with your mnemonic.
+        </p>
+      </div>
+
+      <!-- RECOVER -->
+      <div id="tab-recover" style="display:none;">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="rec-user" placeholder="your username" autocomplete="off"/>
+        </div>
+        <div class="field">
+          <label>25-word mnemonic phrase</label>
+          <textarea id="rec-mn" rows="4" style="resize:vertical;font-size:0.72rem;" placeholder="word1 word2 word3 ..."></textarea>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="recover()">Recover Account</button>
+      </div>
+    </div>
+
+    <!-- MNEMONIC REVEAL -->
+    <div class="mnemonic-card" id="mnemonic-card">
+      <div style="font-family:var(--font-display);font-size:0.75rem;letter-spacing:0.15em;text-transform:uppercase;color:var(--warn);margin-bottom:0.5rem;">⚠ Save your mnemonic — shown once</div>
+      <div class="mnemonic-box" id="mnemonic-display"></div>
+      <div style="font-size:0.62rem;color:var(--muted);margin-bottom:0.8rem;">
+        This is the only way to recover your wallet. Redirecting in 6s…
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="copyMnemonic()">Copy to clipboard</button>
+    </div>
+
+  </div>
+</div>
+
+<script src="/static/main.js"></script>
+<script>
+async function checkStatus() {
+  try {
+    const d   = await api('/api/status');
+    const dot = document.getElementById('chain-dot');
+    const lbl = document.getElementById('chain-label');
+    if (d.online) {
+      dot.style.background = 'var(--success)';
+      dot.style.boxShadow  = '0 0 6px var(--success)';
+      lbl.style.color      = 'var(--success)';
+      lbl.textContent      = 'ALGORAND TESTNET';
+    } else {
+      dot.style.background = 'var(--warn)';
+      dot.style.boxShadow  = 'none';
+      lbl.style.color      = 'var(--warn)';
+      lbl.textContent      = 'SIMULATION MODE';
+    }
+  } catch(e) {
+    document.getElementById('chain-label').textContent = 'OFFLINE';
+  }
+}
+
+function switchTab(name, el) {
+  ['register','login','recover'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = 'none';
+  });
+  document.getElementById('tab-'+name).style.display = 'block';
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+let _mnemonic = '';
+
+async function register() {
+  const u  = document.getElementById('reg-user').value.trim();
+  const pw = document.getElementById('reg-pw').value;
+  if (!u) { toast('Enter a username', 'error'); return; }
+  const d = await api('/api/register', 'POST', { username: u, password: pw });
+  if (d.success) {
+    _mnemonic = d.mnemonic;
+    toast(d.message, 'success');
+    document.getElementById('mnemonic-card').style.display = 'block';
+    document.getElementById('mnemonic-display').textContent = d.mnemonic;
+    setTimeout(() => { window.location.href = d.redirect; }, 6000);
+  } else {
+    toast(d.message, 'error');
+  }
+}
+
+async function login() {
+  const u  = document.getElementById('login-user').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  if (!u) { toast('Enter your username', 'error'); return; }
+  const d = await api('/api/login', 'POST', { username: u, password: pw });
+  if (d.success) {
+    toast(d.message, 'success');
+    setTimeout(() => { window.location.href = d.redirect; }, 600);
+  } else {
+    toast(d.message, 'error');
+  }
+}
+
+async function recover() {
+  const u  = document.getElementById('rec-user').value.trim();
+  const mn = document.getElementById('rec-mn').value.trim();
+  if (!u || !mn) { toast('Username and mnemonic required', 'error'); return; }
+  const d = await api('/api/login', 'POST', { username: u, mnemonic: mn });
+  if (d.success) {
+    toast('Account recovered!', 'success');
+    setTimeout(() => { window.location.href = d.redirect; }, 600);
+  } else {
+    toast(d.message, 'error');
+  }
+}
+
+function copyMnemonic() {
+  const txt = _mnemonic || document.getElementById('mnemonic-display').textContent;
+  navigator.clipboard.writeText(txt).then(() => toast('Mnemonic copied!', 'success'));
+}
+
+checkStatus();
+</script>
+</body>
+</html>
