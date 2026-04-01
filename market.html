@@ -836,15 +836,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>
 </body>
 </html>
-
-// ── INIT
-document.addEventListener('DOMContentLoaded', async () => {
-  await checkChain();
-  await loadWalletBadge();
-  await loadMarkets();
-  setInterval(loadMarkets, 12000);
-  setInterval(loadWalletBadge, 15000);
-});
-</script>
-</body>
 </html>
