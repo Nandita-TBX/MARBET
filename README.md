@@ -1,7 +1,7 @@
 # MARBET - Decentralised Prediction Markets on Algorand
 
 MARBET is a web-based prediction market platform built on the Algorand blockchain.
-Users can create markets, place bets, and receive proportional payouts — all backed
+Users can create markets, place bets, and receive proportional payouts, all backed
 by real Algorand keypairs and cryptographic transaction signatures.
 
 ## Features
